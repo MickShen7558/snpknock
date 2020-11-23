@@ -82,6 +82,55 @@ IntegerMatrix GroupHaplotypes_wrapper(SEXP X_, SEXP r_, SEXP alpha_, SEXP theta_
   Progress progr(n, display_progress);
   IntegerMatrix Xk_ = IntegerMatrix( Dimension(n,p));
   ivector Xk(p,0);
+
+  // 主要修改在这里，我判断这里生成的Xk_矩阵就是后面要用的(X_tiuta^{i=1:k})，故直接作为额外参数传入sample()
+  for(int i=0; i<n; i++) {
+    if (Progress::check_abort() )
+      return (Xk_);
+    Xk = knock.my_sample(ivector(X(i,_).begin(),X(i,_).end()), Xk_, i);
+    for(int j=0; j<p; j++) {
+      Xk_(i,j) = Xk[j];
+    }
+    progr.increment(); // update progress
+  }
+  /////////////////////////////////////////////////////////////////////////////
+  // Original codes here:
+  // for(int i=0; i<n; i++) {
+  //   if (Progress::check_abort() )
+  //     return (Xk_);
+  //   Xk = knock.sample(ivector(X(i,_).begin(),X(i,_).end()));
+  //   for(int j=0; j<p; j++) {
+  //     Xk_(i,j) = Xk[j];
+  //   }
+  //   progr.increment(); // update progress
+  // }
+  //////////////////////////////////////////////////////////////////////////////
+  return(Xk_);
+}
+
+//' Wrapper for DMC group knockoffs
+//'
+//' @keywords internal
+// [[Rcpp::export]]
+IntegerMatrix knockoffDMC_wrapper(SEXP X_, SEXP pInit_, SEXP Q_, SEXP n_, SEXP p_, SEXP K_,
+                                   SEXP seed_, SEXP G_, SEXP display_progress_) {
+  int n = as<int>(n_);
+  int p = as<int>(p_);
+  int K = as<int>(K_);
+  IntegerMatrix X = as<IntegerMatrix>(X_);
+  vector pInit = numToVec(pInit_);
+  vector3 Q = numToVec3(Q_, p-1, K);
+  int seed = as<int>(seed_);
+  bool display_progress = as<bool>(display_progress_);
+  ivector G = numToIntVec(G_);
+
+  // Initialize knockoff generator
+  KnockoffDMC knock(pInit, Q, G, seed);
+
+  // Generate knockoffs, one at a time
+  Progress progr(n, display_progress);
+  IntegerMatrix Xk_ = IntegerMatrix( Dimension(n,p));
+  ivector Xk(p,0);
   for(int i=0; i<n; i++) {
     if (Progress::check_abort() )
       return (Xk_);
@@ -89,12 +138,12 @@ IntegerMatrix GroupHaplotypes_wrapper(SEXP X_, SEXP r_, SEXP alpha_, SEXP theta_
     for(int j=0; j<p; j++) {
       Xk_(i,j) = Xk[j];
     }
-    progr.increment(); // update progress
+    progr.increment();
   }
   return(Xk_);
 }
 
-//' Wrapper for DMC group knockoffs
+//' Wrapper for Peiyao's new DMC group knockoffs
 //'
 //' @keywords internal
 // [[Rcpp::export]]

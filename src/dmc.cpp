@@ -81,6 +81,10 @@ std::vector<int> KnockoffDMC::sample(const std::vector<int>& X) {
   return sample(X, Q_stored);
 }
 
+std::vector<int> KnockoffDMC::my_sample(const std::vector<int>& X,  const IntegerMatrix& Xk_, const int k) {
+  return my_sample(X, Q_stored, Xk_, k);
+}
+
 std::vector< std::vector<int> > KnockoffDMC::sample(const std::vector< std::vector<int> >& X, const arma::cube& Q) {
   unsigned int n = X.size();
   unsigned int p = X[0].size();
@@ -156,6 +160,69 @@ unsigned int weighted_choice(const arma::vec & w, double R) {
     }
   }
   return(K-1);
+}
+
+std::vector<int> KnockoffDMC::my_sample(const std::vector<int>& X, const arma::cube& Q, const IntegerMatrix& Xk_, const int k) {
+
+  // Read dimensions of problem
+  unsigned int p = X.size();
+  unsigned int K = Q.n_rows;
+
+  std::vector<int> Xt(p);                                     // Store the results here
+
+  Z.fill(1);                                                  // Reset normalization function
+  for(unsigned int g=0; g<gInd.size(); g++) {                 // Sample the knockoffs for this group
+    arma::uvec ind = gInd[g];                                 // Find indices of variables within this group
+    unsigned int L = ind.n_elem;                              // Size of this group
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // Compute initial probabilities based on partition function
+    // 这里是唯一修改过的地方
+    if( ind[0]>0 ) {
+      Q1 = Q.slice(ind[0]).row(X.at(ind[0]-1)).t() / pow(Z, k)
+      for(unsigned int i=0; i<k-1; g++) {
+        Q1 %= Q.slice(ind[0]).row(Xk_(i,_).at(ind[0]-1)).t();
+      }
+      Q1 %=  Q.slice(ind[0]).row(Xt.at(ind[0]-1)).t();
+    }
+    ////////////////////////////////////////////////////////////////////////////////
+    else
+      Q1 = Q.slice(0).row(0).t();
+
+    // Compute the normalization functions
+    Z0 = arma::eye(K,K);
+    for(unsigned int j=1; j<L; j++) {                         // Middle L-2 elements + last (inside)
+      Z0 = Z0 * Q.slice(ind[j]);
+    }
+    Z = Z0.t() * Q1;                                          // First element of cluster
+    if( ind[L-1]<(p-1) )                                      // Last element of cluster (outside)
+      Z = Q.slice(ind[L-1]+1).t() * Z;
+    Z.for_each( [](arma::mat::elem_type& val) { val = std::max(1e-50,val); } );  // Avoid divisions by zero
+    
+    // Backpropagate normalization for conditional HMM
+    arma::mat QN(K,L);
+    if( ind[L-1]<(p-1) )
+      QN.col(L-1) = Q.slice(ind[L-1]+1).col(X.at(ind[L-1]+1));
+    else
+      QN.col(L-1).fill(1.0/K);
+    if(L>1) {
+      for(int j=L-2; j>=0; j--) {
+        QN.col(j) = Q.slice(ind[j+1]) * QN.col(j+1);
+      }
+    }
+
+    // Sample the first knockoff
+    w = Q1 % QN.col(0);
+    Xt.at(ind[0]) = weighted_choice(w, dis(gen));
+
+    // Sample the other knockoffs (if size>1)
+    for(unsigned int j=1; j<L; j++) {
+      w = Q.slice(ind[j]).row(Xt.at(ind[j]-1)).t() % QN.col(j);
+      Xt.at(ind[j]) = weighted_choice(w, dis(gen));
+    }
+  }
+
+  return( Xt );
 }
 
 

@@ -29,6 +29,10 @@ Group knockoffs for a Discrete Markov Chain model
 #include <iostream>
 #include <RcppArmadillo.h>
 #include <stdio.h>
+#include <progress.hpp>
+#include <progress_bar.hpp>
+
+using namespace Rcpp;
 
 typedef std::vector< std::vector<double> > matrix;
 
@@ -42,6 +46,8 @@ class KnockoffDMC {
   std::vector< std::vector<int> > sample(const std::vector< std::vector<int> >& X, const arma::cube& Q);
   std::vector<int> sample(const std::vector<int>& X, const arma::cube& Q);
   std::vector<int> sample(const std::vector<int>& X);
+  std::vector<int> my_sample(const std::vector<int>& X, const arma::cube& Q, const IntegerMatrix& Xk_, const int k);
+  std::vector<int> my_sample(const std::vector<int>& X, const IntegerMatrix& Xk_, const int k);
 
  private:
   arma::cube Q_stored;
